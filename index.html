@@ -65,7 +65,6 @@
         .vote-badge { background: #000; color: var(--primary); padding: 2px 8px; border-radius: 12px; margin-left: 10px; font-weight: bold; font-size: 14px; }
     </style>
 
-    <!-- ПОДКЛЮЧАЕМ НАСТОЯЩИЙ FIREBASE ДЛЯ СВЕРХБЫСТРОГО ОНЛАЙНА -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
@@ -126,12 +125,14 @@
 </div>
 
 <script>
-    // Публичные настройки базы данных (готовая открытая тестовая БД специально для твоего проекта)
+    // Подключаем базу данных Firebase
     const firebaseConfig = {
         databaseURL: "https://werwolf-test-default-rtdb.europe-west1.firebasedatabase.app/"
     };
     firebase.initializeApp(firebaseConfig);
-    const dbRef = firebase.database().ref("akim_room_2026");
+    
+    // ТВОЯ НОВАЯ ЛИЧНАЯ УНИКАЛЬНАЯ КОМНАТА
+    const dbRef = firebase.database().ref("akim_mega_lobby_2026");
 
     let myName = "";
     let myRole = "";
@@ -146,7 +147,6 @@
         'Dorfbewohner': { name: 'Dorfbewohner 👨‍🌾', avatar: '👨‍🌾' }
     };
 
-    // Слушаем базу в РЕАЛЬНОМ ВРЕМЕНИ (без лагов и таймаутов)
     dbRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data) {
