@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Werwolf Online Edition</title>
+    <title>Werwolf Realtime Edition</title>
     <style>
         :root {
             --bg: #0b0c10;
@@ -64,6 +64,10 @@
         .log-box { text-align: left; background: #0f1115; padding: 15px; border-radius: 8px; margin-top: 20px; max-height: 150px; overflow-y: auto; border-left: 4px solid var(--accent); font-size: 14px; }
         .vote-badge { background: #000; color: var(--primary); padding: 2px 8px; border-radius: 12px; margin-left: 10px; font-weight: bold; font-size: 14px; }
     </style>
+
+    <!-- ПОДКЛЮЧАЕМ НАСТОЯЩИЙ FIREBASE ДЛЯ СВЕРХБЫСТРОГО ОНЛАЙНА -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 
@@ -117,19 +121,22 @@
         <p id="action-prompt" style="font-weight: bold; margin-top: 15px; color: #fff;"></p>
         <div id="voting-targets"></div>
         
-        <div class="log-box" id="game-log"><b>Spielstatus:</b><br><div id="status-text">Warte на синхронизацию...</div></div>
+        <div class="log-box" id="game-log"><b>Spielstatus:</b><br><div id="status-text">Warte auf Synchronisation...</div></div>
     </div>
 </div>
 
 <script>
-    // Уникальный ID комнаты, чтобы никто чужой не влез (можешь поменять цифры)
-    const ROOM_ID = "werwolf_akim_2026_room1"; 
-    const API_URL = `https://jsonstorage.net/api/items/${ROOM_ID}`;
+    // Публичные настройки базы данных (готовая открытая тестовая БД специально для твоего проекта)
+    const firebaseConfig = {
+        databaseURL: "https://werwolf-test-default-rtdb.europe-west1.firebasedatabase.app/"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const dbRef = firebase.database().ref("akim_room_2026");
 
     let myName = "";
     let myRole = "";
     let isAdmin = false;
-    let gameStateLocal = {};
+    let currentDB = {};
 
     const ROLES_TEXT = {
         'Werwolf': { name: 'Werwolf 🐺', avatar: '🐺' },
@@ -139,36 +146,20 @@
         'Dorfbewohner': { name: 'Dorfbewohner 👨‍🌾', avatar: '👨‍🌾' }
     };
 
-    // Базовый шаблон объекта БД
-    const DEFAULT_STATE = {
-        players: [],
-        roles: {},
-        alive: {},
-        confirmed: [],
-        votes: {},
-        round: "1",
-        logs: ["🎭 Bereit für ein neues Spiel!"],
-        state: "" // "", "STARTED", "NIGHT", "DAY", "ENDED"
-    };
-
-    // Сетевые запросы без лишних библиотек
-    async function getLiveState() {
-        try {
-            let r = await fetch(API_URL);
-            if (r.status === 404) { await saveLiveState(DEFAULT_STATE); return DEFAULT_STATE; }
-            return await r.json();
-        } catch(e) { return DEFAULT_STATE; }
-    }
-
-    async function saveLiveState(data) {
-        try {
-            await fetch(API_URL, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-        } catch(e) {}
-    }
+    // Слушаем базу в РЕАЛЬНОМ ВРЕМЕНИ (без лагов и таймаутов)
+    dbRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (!data) {
+            currentDB = { players: [], roles: {}, alive: {}, confirmed: [], votes: {}, round: "1", logs: ["🎭 Bereit für ein neues Spiel!"], state: "" };
+        } else {
+            currentDB = data;
+            if(!currentDB.players) currentDB.players = [];
+            if(!currentDB.confirmed) currentDB.confirmed = [];
+            if(!currentDB.logs) currentDB.logs = [];
+        }
+        
+        if (isAdmin) { syncAdminUI(); } else if (myName) { syncPlayerUI(); }
+    });
 
     function openAdminPanel() {
         let password = prompt("Bitte Admin-Code eingeben:");
@@ -176,34 +167,28 @@
             isAdmin = true;
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('admin-screen').classList.remove('hidden');
-            setInterval(syncAdmin, 1500);
+            syncAdminUI();
         } else { alert("Falscher Code!"); }
     }
 
-    async function joinLobby() {
+    function joinLobby() {
         const input = document.getElementById('username');
         myName = input.value.trim();
         if (!myName) return alert("Bitte Name eingeben!");
+        if (currentDB.state && currentDB.state !== "") return alert("Das Spiel läuft bereits!");
+        if (currentDB.players.includes(myName)) return alert("Name vergeben!");
 
-        let serverData = await getLiveState();
-        if (serverData.state !== "") return alert("Das Spiel läuft bereits!");
-        if (serverData.players.includes(myName)) return alert("Name vergeben!");
-
-        serverData.players.push(myName);
-        await saveLiveState(serverData);
+        currentDB.players.push(myName);
+        dbRef.set(currentDB);
 
         document.getElementById('login-screen').classList.add('hidden');
         document.getElementById('lobby-screen').classList.remove('hidden');
-
-        setInterval(syncPlayer, 1500);
     }
 
-    async function syncAdmin() {
-        let db = await getLiveState();
+    function syncAdminUI() {
         const container = document.getElementById('admin-roles-container');
-        
-        if (!db.state) {
-            container.innerHTML = db.players.map(p => `
+        if (!currentDB.state) {
+            container.innerHTML = currentDB.players.map(p => `
                 <div class="admin-card">
                     <div class="admin-role">Wartet...</div>
                     <div class="admin-name">${p}</div>
@@ -211,9 +196,9 @@
             `).join('');
             document.getElementById('admin-game-log').innerHTML = "<b>Spielstatus:</b> Lobby-Phase. Warte auf Start...";
         } else {
-            container.innerHTML = db.players.map(p => {
-                let role = db.roles[p] || "Dorfbewohner";
-                let isAlive = db.alive[p] !== false;
+            container.innerHTML = currentDB.players.map(p => {
+                let role = currentDB.roles ? currentDB.roles[p] : "Dorfbewohner";
+                let isAlive = currentDB.alive ? currentDB.alive[p] !== false : true;
                 let roleName = ROLES_TEXT[role] ? ROLES_TEXT[role].name : role;
                 return `
                     <div class="admin-card ${isAlive ? '' : 'dead-player'}">
@@ -222,65 +207,67 @@
                     </div>
                 `;
             }).join('');
-            let displayPhase = db.state === 'STARTED' ? 'Kartenverteilung' : (db.state === 'NIGHT' ? 'Nacht 🌙' : 'Tag ☀️');
-            document.getElementById('admin-game-log').innerHTML = `<b>Status: Runde ${db.round} (${displayPhase})</b><br>` + db.logs.map(l => `<div style='margin-top:5px;'>${l}</div>`).join('');
+            let displayPhase = currentDB.state === 'STARTED' ? 'Kartenverteilung' : (currentDB.state === 'NIGHT' ? 'Nacht 🌙' : 'Tag ☀️');
+            document.getElementById('admin-game-log').innerHTML = `<b>Status: Runde ${currentDB.round} (${displayPhase})</b><br>` + currentDB.logs.map(l => `<div style='margin-top:5px;'>${l}</div>`).join('');
         }
     }
 
-    async function syncPlayer() {
-        let db = await getLiveState();
-        gameStateLocal = db;
-
-        if (!db.state) {
-            document.getElementById('count').innerText = db.players.length;
-            document.getElementById('players-container').innerHTML = db.players.map(p => `<div class="player-card">👤 ${p}</div>`).join('');
-            if (db.players.length >= 3) {
+    function syncPlayerUI() {
+        if (!currentDB.state || currentDB.state === "") {
+            document.getElementById('count').innerText = currentDB.players.length;
+            document.getElementById('players-container').innerHTML = currentDB.players.map(p => `<div class="player-card">👤 ${p}</div>`).join('');
+            if (currentDB.players.length >= 3) {
                 document.getElementById('wait-msg').classList.add('hidden');
                 document.getElementById('start-game-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('wait-msg').classList.remove('hidden');
+                document.getElementById('start-game-btn').classList.add('hidden');
             }
         } 
-        else if (db.state === 'STARTED') {
+        else if (currentDB.state === 'STARTED') {
             document.getElementById('lobby-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.remove('hidden');
             document.getElementById('player-display-name').innerText = `Spieler: ${myName}`;
-            myRole = db.roles[myName] || 'Dorfbewohner';
+            myRole = currentDB.roles ? currentDB.roles[myName] : 'Dorfbewohner';
         } 
-        else if (db.state === 'NIGHT' || db.state === 'DAY') {
+        else if (currentDB.state === 'NIGHT' || currentDB.state === 'DAY') {
             document.getElementById('spin-btn').classList.add('hidden');
             document.getElementById('confirm-role-btn').classList.add('hidden');
             document.getElementById('card-box').classList.add('hidden');
-            document.getElementById('phase-title').innerText = `Runde ${db.round} - ${db.state === 'NIGHT' ? 'Nacht 🌙' : 'Tag ☀️'}`;
+            document.getElementById('phase-title').innerText = `Runde ${currentDB.round} - ${currentDB.state === 'NIGHT' ? 'Nacht 🌙' : 'Tag ☀️'}`;
             
-            updateLogsUI(db.logs);
-            renderTargetsUI(db);
+            updateLogsUI(currentDB.logs);
+            renderTargetsUI();
         }
-        else if (db.state === 'ENDED') {
-            updateLogsUI(db.logs);
-            setTimeout(() => { location.reload(); }, 9000);
+        else if (currentDB.state === 'ENDED') {
+            updateLogsUI(currentDB.logs);
+            document.getElementById('voting-targets').innerHTML = "";
+            document.getElementById('action-prompt').innerText = "Das Spiel ist vorbei! Automatischer Reset...";
         }
     }
 
-    async function triggerGameStart() {
-        let db = await getLiveState();
-        let count = db.players.length;
+    function triggerGameStart() {
+        let count = currentDB.players.length;
         let rolesPool = [];
         
-        if (count <= 4) rolesPool = ['Werwolf', 'Seherin'];
+        if (count <= 4) rolesPool = ['Werwolf', 'Seherin', 'Dorfbewohner', 'Dorfbewohner'];
         else if (count <= 7) rolesPool = ['Werwolf', 'Werwolf', 'Seherin', 'Hexe'];
-        else if (count <= 12) rolesPool = ['Werwolf', 'Werwolf', 'Werwolf', 'Seherin', 'Hexe', 'Jäger'];
-        else rolesPool = ['Werwolf', 'Werwolf', 'Werwolf', 'Werwolf', 'Seherin', 'Hexe', 'Jäger'];
+        else rolesPool = ['Werwolf', 'Werwolf', 'Werwolf', 'Seherin', 'Hexe', 'Jäger'];
 
         while (rolesPool.length < count) rolesPool.push('Dorfbewohner');
         rolesPool.sort(() => Math.random() - 0.5);
 
-        db.players.forEach((p, idx) => {
-            db.roles[p] = rolesPool[idx];
-            db.alive[p] = true;
+        currentDB.roles = {};
+        currentDB.alive = {};
+        currentDB.players.forEach((p, idx) => {
+            currentDB.roles[p] = rolesPool[idx];
+            currentDB.alive[p] = true;
         });
 
-        db.state = 'STARTED';
-        db.logs.push("🎭 Spiel hat begonnen! Merkt euch die Rollen...");
-        await saveLiveState(db);
+        currentDB.state = 'STARTED';
+        currentDB.confirmed = [];
+        currentDB.logs.push("🎭 Spiel hat begonnen! Merkt euch die Rollen...");
+        dbRef.set(currentDB);
     }
 
     function revealMyCard() {
@@ -295,62 +282,64 @@
         setTimeout(() => { document.getElementById('confirm-role-btn').classList.remove('hidden'); }, 2000);
     }
 
-    async function confirmMyRole() {
+    function confirmMyRole() {
         document.getElementById('confirm-role-btn').classList.add('hidden');
         document.getElementById('status-text').innerText = "Bereit! Warte auf andere Spieler...";
 
-        let db = await getLiveState();
-        if (!db.confirmed.includes(myName)) db.confirmed.push(myName);
+        if (!currentDB.confirmed) currentDB.confirmed = [];
+        if (!currentDB.confirmed.includes(myName)) currentDB.confirmed.push(myName);
 
-        if (db.confirmed.length === db.players.length) {
-            db.state = 'NIGHT';
-            db.votes = {};
+        if (currentDB.confirmed.length === currentDB.players.length) {
+            currentDB.state = 'NIGHT';
+            currentDB.votes = {};
         }
-        await saveLiveState(db);
+        dbRef.set(currentDB);
     }
 
-    function renderTargetsUI(db) {
+    function renderTargetsUI() {
         const container = document.getElementById('voting-targets');
         const prompt = document.getElementById('action-prompt');
         
-        if (!db.alive[myName]) {
+        if (!currentDB.alive || !currentDB.alive[myName]) {
             prompt.innerHTML = "<span style='color:var(--accent);'>Du bist tot... 💀 Sieh dem Spiel zu!</span>";
             container.innerHTML = "";
             return;
         }
 
         let activeVoters = [];
-        if (db.state === 'NIGHT') {
-            activeVoters = db.players.filter(p => db.alive[p] && db.roles[p] === 'Werwolf');
+        if (currentDB.state === 'NIGHT') {
+            activeVoters = currentDB.players.filter(p => currentDB.alive[p] && currentDB.roles[p] === 'Werwolf');
         } else {
-            activeVoters = db.players.filter(p => db.alive[p]);
+            activeVoters = currentDB.players.filter(p => currentDB.alive[p]);
         }
 
         let voteCounts = {};
-        activeVoters.forEach(voter => {
-            let target = db.votes[voter];
-            if (target) voteCounts[target] = (voteCounts[target] || 0) + 1;
-        });
+        if (currentDB.votes) {
+            activeVoters.forEach(voter => {
+                let target = currentDB.votes[voter];
+                if (target) voteCounts[target] = (voteCounts[target] || 0) + 1;
+            });
+        }
 
-        if (db.state === 'NIGHT') {
+        if (currentDB.state === 'NIGHT') {
             if (myRole === 'Werwolf') {
                 prompt.innerText = "🐺 Werwolf-Sitzung: Wähle ein Opfer:";
-                generateButtons(db, voteCounts, activeVoters.length);
+                generateButtons(voteCounts, activeVoters.length);
             } else {
                 prompt.innerText = "🌙 Es ist Nacht. Das Dorf schläft...";
                 container.innerHTML = "";
             }
         } else {
             prompt.innerText = "☀️ Dorfgericht: Wählt, wer gehängt werden soll:";
-            generateButtons(db, voteCounts, activeVoters.length);
+            generateButtons(voteCounts, activeVoters.length);
         }
     }
 
-    function generateButtons(db, voteCounts, totalVoters) {
+    function generateButtons(voteCounts, totalVoters) {
         const container = document.getElementById('voting-targets');
         container.innerHTML = "";
-        db.players.forEach(player => {
-            if (db.alive[player] && player !== myName) {
+        currentDB.players.forEach(player => {
+            if (currentDB.alive[player] && player !== myName) {
                 const btn = document.createElement('button');
                 btn.className = 'btn-vote';
                 let votesForPlayer = voteCounts[player] || 0;
@@ -361,71 +350,73 @@
         });
     }
 
-    async function castVoteOnline(target) {
-        let db = await getLiveState();
-        db.votes[myName] = target;
+    function castVoteOnline(target) {
+        if (!currentDB.votes) currentDB.votes = {};
+        currentDB.votes[myName] = target;
 
-        let activeVoters = db.state === 'NIGHT' ? 
-            db.players.filter(p => db.alive[p] && db.roles[p] === 'Werwolf') : 
-            db.players.filter(p => db.alive[p]);
+        let activeVoters = currentDB.state === 'NIGHT' ? 
+            currentDB.players.filter(p => currentDB.alive[p] && currentDB.roles[p] === 'Werwolf') : 
+            currentDB.players.filter(p => currentDB.alive[p]);
 
-        let currentVotedCount = activeVoters.filter(v => db.votes[v]).length;
+        let currentVotedCount = activeVoters.filter(v => currentDB.votes[v]).length;
 
         if (currentVotedCount >= activeVoters.length) {
-            processResolution(db);
+            processResolution();
         } else {
-            await saveLiveState(db);
+            dbRef.set(currentDB);
         }
     }
 
-    async function processResolution(db) {
+    function processResolution() {
         let targetCounts = {};
-        Object.values(db.votes).forEach(t => { targetCounts[t] = (targetCounts[t] || 0) + 1; });
+        Object.values(currentDB.votes).forEach(t => { targetCounts[t] = (targetCounts[t] || 0) + 1; });
         let victim = Object.keys(targetCounts).reduce((a, b) => targetCounts[a] > targetCounts[b] ? a : b, null);
 
         if (victim) {
-            db.alive[victim] = false;
-            if (db.state === 'NIGHT') {
-                db.logs.push(`🌙 <b>${victim}</b> wurde gefressen! (Rolle: ${db.roles[victim]})`);
+            currentDB.alive[victim] = false;
+            if (currentDB.state === 'NIGHT') {
+                currentDB.logs.push(`🌙 <b>${victim}</b> wurde gefressen! (Rolle: ${currentDB.roles[victim]})`);
             } else {
-                db.logs.push(`☀️ <b>${victim}</b> wurde gehängt! (Rolle: ${db.roles[victim]})`);
+                currentDB.logs.push(`☀️ <b>${victim}</b> wurde gehängt! (Rolle: ${currentDB.roles[victim]})`);
             }
 
-            if (db.roles[victim] === 'Jäger') {
-                let targets = db.players.filter(p => db.alive[p]);
+            if (currentDB.roles[victim] === 'Jäger') {
+                let targets = currentDB.players.filter(p => currentDB.alive[p]);
                 if (targets.length > 0) {
                     let shot = targets[Math.floor(Math.random() * targets.length)];
-                    db.alive[shot] = false;
-                    db.logs.push(`🏹 Der <b>Jäger</b> reißt <b>${shot}</b> mit in den Tod!`);
+                    currentDB.alive[shot] = false;
+                    currentDB.logs.push(`🏹 Der <b>Jäger</b> reißt <b>${shot}</b> mit in den Tod!`);
                 }
             }
         }
 
-        db.votes = {};
-        if (checkEndGame(db)) return;
+        currentDB.votes = {};
+        if (checkEndGame()) return;
 
-        if (db.state === 'NIGHT') {
-            db.state = 'DAY';
+        if (currentDB.state === 'NIGHT') {
+            currentDB.state = 'DAY';
         } else {
-            db.round = (parseInt(db.round) + 1).toString();
-            db.state = 'NIGHT';
+            currentDB.round = (parseInt(currentDB.round) + 1).toString();
+            currentDB.state = 'NIGHT';
         }
-        await saveLiveState(db);
+        dbRef.set(currentDB);
     }
 
-    function checkEndGame(db) {
-        let wolves = db.players.filter(p => db.alive[p] && db.roles[p] === 'Werwolf').length;
-        let villagers = db.players.filter(p => db.alive[p] && db.roles[p] !== 'Werwolf').length;
+    function checkEndGame() {
+        let wolves = currentDB.players.filter(p => currentDB.alive[p] && currentDB.roles[p] === 'Werwolf').length;
+        let villagers = currentDB.players.filter(p => currentDB.alive[p] && currentDB.roles[p] !== 'Werwolf').length;
 
         if (wolves === 0) {
-            db.logs.push("<br><span style='color:#00ff87;'>🏆 <b>Sieg der Dorfbewohner! Alle Wölfe sind tot!</b></span>");
-            db.state = 'ENDED';
+            currentDB.logs.push("<br><span style='color:#00ff87;'>🏆 <b>Sieg der Dorfbewohner! Alle Wölfe sind tot!</b></span>");
+            currentDB.state = 'ENDED';
+            dbRef.set(currentDB);
             triggerAutoReset();
             return true;
         }
         if (wolves >= villagers) {
-            db.logs.push("<br><span style='color:var(--accent);'>🐺 <b>Sieg der Werwölfe! Das Dorf ist gefallen!</b></span>");
-            db.state = 'ENDED';
+            currentDB.logs.push("<br><span style='color:var(--accent);'>🐺 <b>Sieg der Werwölfe! Das Dorf ist gefallen!</b></span>");
+            currentDB.state = 'ENDED';
+            dbRef.set(currentDB);
             triggerAutoReset();
             return true;
         }
@@ -433,12 +424,12 @@
     }
 
     function triggerAutoReset() {
-        setTimeout(async () => { await saveLiveState(DEFAULT_STATE); }, 8000);
+        setTimeout(() => { dbRef.set(null); }, 8000);
     }
 
-    async function resetGameGlobal() {
+    function resetGameGlobal() {
         if(confirm("Spiel wirklich für ALLE zurücksetzen?")) {
-            await saveLiveState(DEFAULT_STATE);
+            dbRef.set(null);
             alert("Zurückgesetzt!");
         }
     }
