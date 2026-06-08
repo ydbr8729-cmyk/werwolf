@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Werwolf Online Edition</title>
+    <style>
+        :root {
+            --bg: #0b0c10;
+            --panel: #1f2833;
+            --primary: #45f3ff;
+            --accent: #ff0055;
+            --text: #c5c6c7;
+            --admin-color: #00ff87;
+        }
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            text-align: center; 
+            padding: 20px; 
+            margin: 0; 
+        }
+        .box { 
+            max-width: 650px; 
+            margin: 30px auto; 
+            background: var(--panel); 
+            padding: 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 8px 32px rgba(0, 243, 255, 0.1); 
+            border: 1px solid rgba(69, 243, 255, 0.2); 
+        }
+        h1 { color: var(--primary); text-transform: uppercase; letter-spacing: 2px; }
+        button { 
+            background: linear-gradient(45deg, var(--accent), #cc0044); 
+            color: white; border: none; padding: 12px 24px; 
+            font-size: 16px; font-weight: bold; border-radius: 8px; 
+            cursor: pointer; margin: 8px; transition: 0.2s; 
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(255, 0, 85, 0.4); }
+        .btn-vote { background: linear-gradient(45deg, var(--primary), #00b3cc); color: #000; display: block; width: 80%; margin: 10px auto; padding: 14px; font-size: 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-admin { background: transparent; border: 1px dashed var(--admin-color); color: var(--admin-color); font-size: 12px; padding: 6px 12px; margin-top: 20px; opacity: 0.6; }
+        .btn-admin:hover { opacity: 1; transform: none; box-shadow: 0 0 10px rgba(0, 255, 135, 0.3); }
+        input { 
+            padding: 12px; font-size: 16px; border-radius: 8px; 
+            border: 2px solid var(--primary); background: #0f1115; 
+            color: white; margin-bottom: 20px; width: 75%; text-align: center; outline: none; 
+        }
+        .hidden { display: none !important; }
+        .grid-players { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin: 20px 0; }
+        .player-card { background: #0f1115; padding: 12px; border-radius: 8px; border: 1px solid var(--primary); color: #fff; font-weight: bold; }
+        
+        .admin-card { background: #0f1115; padding: 15px; border-radius: 10px; border: 2px solid var(--admin-color); text-align: center; }
+        .admin-role { font-size: 18px; font-weight: bold; color: var(--admin-color); margin-bottom: 5px; }
+        .admin-name { font-size: 14px; color: #fff; }
+        .dead-player { opacity: 0.4; border-color: #555 !important; text-decoration: line-through; }
+
+        .card-container { width: 160px; height: 230px; margin: 20px auto; perspective: 1000px; }
+        .card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transform: rotateY(180deg); }
+        .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .card-front { background: linear-gradient(135deg, #1f2438, #0d101d); border: 3px solid var(--primary); }
+        .card-back { background: linear-gradient(135deg, #2c161f, #12050b); border: 3px solid var(--accent); transform: rotateY(180deg); }
+        
+        .log-box { text-align: left; background: #0f1115; padding: 15px; border-radius: 8px; margin-top: 20px; max-height: 150px; overflow-y: auto; border-left: 4px solid var(--accent); font-size: 14px; }
+        .vote-badge { background: #000; color: var(--primary); padding: 2px 8px; border-radius: 12px; margin-left: 10px; font-weight: bold; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h1>Werwolf Online 🐺</h1>
+
+    <!-- ШАГ 1: Вход -->
+    <div id="login-screen">
+        <p>Gib deinen Nickname ein:</p>
+        <input type="text" id="username" placeholder="Name..." maxlength="12"><br>
+        <button onclick="joinLobby()">Lobby beitreten</button>
+        <br>
+        <button class="btn-admin" onclick="openAdminPanel()">Admin-Bereich 🔐</button>
+    </div>
+
+    <!-- ЭКРАН АДМИНА -->
+    <div id="admin-screen" class="hidden">
+        <h2 style="color: var(--admin-color);">Lehrer-Dashboard 👁️</h2>
+        <p style="color: #aaa;">Echtzeit-Rollen und Spielverlauf:</p>
+        <div class="grid-players" id="admin-roles-container"></div>
+        <div class="log-box" id="admin-game-log" style="border-left-color: var(--admin-color);"><b>Spielstatus:</b> Synchronisiere...</div>
+        <button onclick="resetGameGlobal()" style="background: var(--accent); margin-top: 20px; font-size: 14px;">Spiel komplett zurücksetzen 🔄</button>
+    </div>
+
+    <!-- ШАГ 2: Ожидание -->
+    <div id="lobby-screen" class="hidden">
+        <h3>Warteraum (<span id="count" style="color:var(--primary)">0</span>/19)</h3>
+        <div class="grid-players" id="players-container"></div>
+        <p id="wait-msg" style="color: #777;">Warte auf Spieler...</p>
+        <button id="start-game-btn" class="hidden" onclick="triggerGameStart()" style="background: linear-gradient(45deg, #00ff87, #60efff); color: #000;">Spiel starten 🚀</button>
+    </div>
+
+    <!-- ШАГ 3: Игра -->
+    <div id="game-screen" class="hidden">
+        <h2 id="player-display-name" style="color: #fff;">Spieler: ???</h2>
+        <h3 id="phase-title" style="color: var(--accent);">Karten werden verteilt...</h3>
+        
+        <div class="card-container" id="card-box">
+            <div class="card" id="main-card">
+                <div class="card-face card-back"><div style="font-size:50px;">❓</div></div>
+                <div class="card-face card-front">
+                    <div style="font-size:60px;" id="role-avatar">🐺</div>
+                    <div id="role-title" style="font-weight:bold; margin-top:10px; color:var(--primary)">Role</div>
+                </div>
+            </div>
+        </div>
+        
+        <button id="spin-btn" onclick="revealMyCard()">Karte anzeigen (720°)</button>
+        <button id="confirm-role-btn" class="hidden" onclick="confirmMyRole()" style="background: linear-gradient(45deg, #00ff87, #60efff); color: #000;">Ich habe meine Rolle gemerkt ✅</button>
+        
+        <p id="action-prompt" style="font-weight: bold; margin-top: 15px; color: #fff;"></p>
+        <div id="voting-targets"></div>
+        
+        <div class="log-box" id="game-log"><b>Spielstatus:</b><br><div id="status-text">Warte на синхронизацию...</div></div>
+    </div>
+</div>
+
+<script>
+    // Уникальный ID комнаты, чтобы никто чужой не влез (можешь поменять цифры)
+    const ROOM_ID = "werwolf_akim_2026_room1"; 
+    const API_URL = `https://jsonstorage.net/api/items/${ROOM_ID}`;
+
+    let myName = "";
+    let myRole = "";
+    let isAdmin = false;
+    let gameStateLocal = {};
+
+    const ROLES_TEXT = {
+        'Werwolf': { name: 'Werwolf 🐺', avatar: '🐺' },
+        'Seherin': { name: 'Seherin 🔮', avatar: '🔮' },
+        'Hexe': { name: 'Hexe 🧪', avatar: '🧪' },
+        'Jäger': { name: 'Jäger 🏹', avatar: '🏹' },
+        'Dorfbewohner': { name: 'Dorfbewohner 👨‍🌾', avatar: '👨‍🌾' }
+    };
+
+    // Базовый шаблон объекта БД
+    const DEFAULT_STATE = {
+        players: [],
+        roles: {},
+        alive: {},
+        confirmed: [],
+        votes: {},
+        round: "1",
+        logs: ["🎭 Bereit für ein neues Spiel!"],
+        state: "" // "", "STARTED", "NIGHT", "DAY", "ENDED"
+    };
+
+    // Сетевые запросы без лишних библиотек
+    async function getLiveState() {
+        try {
+            let r = await fetch(API_URL);
+            if (r.status === 404) { await saveLiveState(DEFAULT_STATE); return DEFAULT_STATE; }
+            return await r.json();
+        } catch(e) { return DEFAULT_STATE; }
+    }
+
+    async function saveLiveState(data) {
+        try {
+            await fetch(API_URL, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+        } catch(e) {}
+    }
+
+    function openAdminPanel() {
+        let password = prompt("Bitte Admin-Code eingeben:");
+        if (password === "2026") {
+            isAdmin = true;
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('admin-screen').classList.remove('hidden');
+            setInterval(syncAdmin, 1500);
+        } else { alert("Falscher Code!"); }
+    }
+
+    async function joinLobby() {
+        const input = document.getElementById('username');
+        myName = input.value.trim();
+        if (!myName) return alert("Bitte Name eingeben!");
+
+        let serverData = await getLiveState();
+        if (serverData.state !== "") return alert("Das Spiel läuft bereits!");
+        if (serverData.players.includes(myName)) return alert("Name vergeben!");
+
+        serverData.players.push(myName);
+        await saveLiveState(serverData);
+
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('lobby-screen').classList.remove('hidden');
+
+        setInterval(syncPlayer, 1500);
+    }
+
+    async function syncAdmin() {
+        let db = await getLiveState();
+        const container = document.getElementById('admin-roles-container');
+        
+        if (!db.state) {
+            container.innerHTML = db.players.map(p => `
+                <div class="admin-card">
+                    <div class="admin-role">Wartet...</div>
+                    <div class="admin-name">${p}</div>
+                </div>
+            `).join('');
+            document.getElementById('admin-game-log').innerHTML = "<b>Spielstatus:</b> Lobby-Phase. Warte auf Start...";
+        } else {
+            container.innerHTML = db.players.map(p => {
+                let role = db.roles[p] || "Dorfbewohner";
+                let isAlive = db.alive[p] !== false;
+                let roleName = ROLES_TEXT[role] ? ROLES_TEXT[role].name : role;
+                return `
+                    <div class="admin-card ${isAlive ? '' : 'dead-player'}">
+                        <div class="admin-role">${roleName}</div>
+                        <div class="admin-name">${p} ${isAlive ? '' : '💀'}</div>
+                    </div>
+                `;
+            }).join('');
+            let displayPhase = db.state === 'STARTED' ? 'Kartenverteilung' : (db.state === 'NIGHT' ? 'Nacht 🌙' : 'Tag ☀️');
+            document.getElementById('admin-game-log').innerHTML = `<b>Status: Runde ${db.round} (${displayPhase})</b><br>` + db.logs.map(l => `<div style='margin-top:5px;'>${l}</div>`).join('');
+        }
+    }
+
+    async function syncPlayer() {
+        let db = await getLiveState();
+        gameStateLocal = db;
+
+        if (!db.state) {
+            document.getElementById('count').innerText = db.players.length;
+            document.getElementById('players-container').innerHTML = db.players.map(p => `<div class="player-card">👤 ${p}</div>`).join('');
+            if (db.players.length >= 3) {
+                document.getElementById('wait-msg').classList.add('hidden');
+                document.getElementById('start-game-btn').classList.remove('hidden');
+            }
+        } 
+        else if (db.state === 'STARTED') {
+            document.getElementById('lobby-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            document.getElementById('player-display-name').innerText = `Spieler: ${myName}`;
+            myRole = db.roles[myName] || 'Dorfbewohner';
+        } 
+        else if (db.state === 'NIGHT' || db.state === 'DAY') {
+            document.getElementById('spin-btn').classList.add('hidden');
+            document.getElementById('confirm-role-btn').classList.add('hidden');
+            document.getElementById('card-box').classList.add('hidden');
+            document.getElementById('phase-title').innerText = `Runde ${db.round} - ${db.state === 'NIGHT' ? 'Nacht 🌙' : 'Tag ☀️'}`;
+            
+            updateLogsUI(db.logs);
+            renderTargetsUI(db);
+        }
+        else if (db.state === 'ENDED') {
+            updateLogsUI(db.logs);
+            setTimeout(() => { location.reload(); }, 9000);
+        }
+    }
+
+    async function triggerGameStart() {
+        let db = await getLiveState();
+        let count = db.players.length;
+        let rolesPool = [];
+        
+        if (count <= 4) rolesPool = ['Werwolf', 'Seherin'];
+        else if (count <= 7) rolesPool = ['Werwolf', 'Werwolf', 'Seherin', 'Hexe'];
+        else if (count <= 12) rolesPool = ['Werwolf', 'Werwolf', 'Werwolf', 'Seherin', 'Hexe', 'Jäger'];
+        else rolesPool = ['Werwolf', 'Werwolf', 'Werwolf', 'Werwolf', 'Seherin', 'Hexe', 'Jäger'];
+
+        while (rolesPool.length < count) rolesPool.push('Dorfbewohner');
+        rolesPool.sort(() => Math.random() - 0.5);
+
+        db.players.forEach((p, idx) => {
+            db.roles[p] = rolesPool[idx];
+            db.alive[p] = true;
+        });
+
+        db.state = 'STARTED';
+        db.logs.push("🎭 Spiel hat begonnen! Merkt euch die Rollen...");
+        await saveLiveState(db);
+    }
+
+    function revealMyCard() {
+        document.getElementById('spin-btn').classList.add('hidden');
+        const info = ROLES_TEXT[myRole] || { name: 'Dorfbewohner 👨‍🌾', avatar: '👨‍🌾' };
+        document.getElementById('role-avatar').innerText = info.avatar;
+        document.getElementById('role-title').innerText = info.name;
+
+        const card = document.getElementById('main-card');
+        card.style.transition = 'transform 2.0s cubic-bezier(0.1, 0.8, 0.1, 1)';
+        card.style.transform = 'rotateY(720deg)';
+        setTimeout(() => { document.getElementById('confirm-role-btn').classList.remove('hidden'); }, 2000);
+    }
+
+    async function confirmMyRole() {
+        document.getElementById('confirm-role-btn').classList.add('hidden');
+        document.getElementById('status-text').innerText = "Bereit! Warte auf andere Spieler...";
+
+        let db = await getLiveState();
+        if (!db.confirmed.includes(myName)) db.confirmed.push(myName);
+
+        if (db.confirmed.length === db.players.length) {
+            db.state = 'NIGHT';
+            db.votes = {};
+        }
+        await saveLiveState(db);
+    }
+
+    function renderTargetsUI(db) {
+        const container = document.getElementById('voting-targets');
+        const prompt = document.getElementById('action-prompt');
+        
+        if (!db.alive[myName]) {
+            prompt.innerHTML = "<span style='color:var(--accent);'>Du bist tot... 💀 Sieh dem Spiel zu!</span>";
+            container.innerHTML = "";
+            return;
+        }
+
+        let activeVoters = [];
+        if (db.state === 'NIGHT') {
+            activeVoters = db.players.filter(p => db.alive[p] && db.roles[p] === 'Werwolf');
+        } else {
+            activeVoters = db.players.filter(p => db.alive[p]);
+        }
+
+        let voteCounts = {};
+        activeVoters.forEach(voter => {
+            let target = db.votes[voter];
+            if (target) voteCounts[target] = (voteCounts[target] || 0) + 1;
+        });
+
+        if (db.state === 'NIGHT') {
+            if (myRole === 'Werwolf') {
+                prompt.innerText = "🐺 Werwolf-Sitzung: Wähle ein Opfer:";
+                generateButtons(db, voteCounts, activeVoters.length);
+            } else {
+                prompt.innerText = "🌙 Es ist Nacht. Das Dorf schläft...";
+                container.innerHTML = "";
+            }
+        } else {
+            prompt.innerText = "☀️ Dorfgericht: Wählt, wer gehängt werden soll:";
+            generateButtons(db, voteCounts, activeVoters.length);
+        }
+    }
+
+    function generateButtons(db, voteCounts, totalVoters) {
+        const container = document.getElementById('voting-targets');
+        container.innerHTML = "";
+        db.players.forEach(player => {
+            if (db.alive[player] && player !== myName) {
+                const btn = document.createElement('button');
+                btn.className = 'btn-vote';
+                let votesForPlayer = voteCounts[player] || 0;
+                btn.innerHTML = `🎯 ${player} <span class="vote-badge">${votesForPlayer}/${totalVoters}</span>`;
+                btn.onclick = () => castVoteOnline(player);
+                container.appendChild(btn);
+            }
+        });
+    }
+
+    async function castVoteOnline(target) {
+        let db = await getLiveState();
+        db.votes[myName] = target;
+
+        let activeVoters = db.state === 'NIGHT' ? 
+            db.players.filter(p => db.alive[p] && db.roles[p] === 'Werwolf') : 
+            db.players.filter(p => db.alive[p]);
+
+        let currentVotedCount = activeVoters.filter(v => db.votes[v]).length;
+
+        if (currentVotedCount >= activeVoters.length) {
+            processResolution(db);
+        } else {
+            await saveLiveState(db);
+        }
+    }
+
+    async function processResolution(db) {
+        let targetCounts = {};
+        Object.values(db.votes).forEach(t => { targetCounts[t] = (targetCounts[t] || 0) + 1; });
+        let victim = Object.keys(targetCounts).reduce((a, b) => targetCounts[a] > targetCounts[b] ? a : b, null);
+
+        if (victim) {
+            db.alive[victim] = false;
+            if (db.state === 'NIGHT') {
+                db.logs.push(`🌙 <b>${victim}</b> wurde gefressen! (Rolle: ${db.roles[victim]})`);
+            } else {
+                db.logs.push(`☀️ <b>${victim}</b> wurde gehängt! (Rolle: ${db.roles[victim]})`);
+            }
+
+            if (db.roles[victim] === 'Jäger') {
+                let targets = db.players.filter(p => db.alive[p]);
+                if (targets.length > 0) {
+                    let shot = targets[Math.floor(Math.random() * targets.length)];
+                    db.alive[shot] = false;
+                    db.logs.push(`🏹 Der <b>Jäger</b> reißt <b>${shot}</b> mit in den Tod!`);
+                }
+            }
+        }
+
+        db.votes = {};
+        if (checkEndGame(db)) return;
+
+        if (db.state === 'NIGHT') {
+            db.state = 'DAY';
+        } else {
+            db.round = (parseInt(db.round) + 1).toString();
+            db.state = 'NIGHT';
+        }
+        await saveLiveState(db);
+    }
+
+    function checkEndGame(db) {
+        let wolves = db.players.filter(p => db.alive[p] && db.roles[p] === 'Werwolf').length;
+        let villagers = db.players.filter(p => db.alive[p] && db.roles[p] !== 'Werwolf').length;
+
+        if (wolves === 0) {
+            db.logs.push("<br><span style='color:#00ff87;'>🏆 <b>Sieg der Dorfbewohner! Alle Wölfe sind tot!</b></span>");
+            db.state = 'ENDED';
+            triggerAutoReset();
+            return true;
+        }
+        if (wolves >= villagers) {
+            db.logs.push("<br><span style='color:var(--accent);'>🐺 <b>Sieg der Werwölfe! Das Dorf ist gefallen!</b></span>");
+            db.state = 'ENDED';
+            triggerAutoReset();
+            return true;
+        }
+        return false;
+    }
+
+    function triggerAutoReset() {
+        setTimeout(async () => { await saveLiveState(DEFAULT_STATE); }, 8000);
+    }
+
+    async function resetGameGlobal() {
+        if(confirm("Spiel wirklich für ALLE zurücksetzen?")) {
+            await saveLiveState(DEFAULT_STATE);
+            alert("Zurückgesetzt!");
+        }
+    }
+
+    function updateLogsUI(logs) {
+        const logBox = document.getElementById('game-log');
+        logBox.innerHTML = "<b>Spielstatus:</b>" + logs.map(l => `<div style='margin-top:5px;'>${l}</div>`).join('');
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+</script>
+</body>
+</html>
