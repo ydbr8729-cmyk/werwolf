@@ -2,15 +2,14 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Werwolf System 🐺</title>
+    <title>Werwolf Game 🐺</title>
     <style>
-        :root { --bg: #0b0c10; --panel: #1f2833; --primary: #45f3ff; --admin: #00ff87; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff; text-align: center; padding: 20px; }
-        .box { max-width: 500px; margin: 30px auto; background: var(--panel); padding: 30px; border-radius: 16px; border: 1px solid var(--primary); }
-        input { padding: 12px; width: 80%; margin: 10px 0; border-radius: 8px; border: 2px solid var(--primary); background: #0f1115; color: white; text-align: center; }
-        button { background: var(--primary); color: #000; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; }
-        #loader { font-size: 20px; color: var(--admin); margin: 20px; }
-        .player-list { margin-top: 20px; border-top: 1px solid #444; padding-top: 10px; text-align: left; }
+        :root { --bg: #0b0c10; --primary: #45f3ff; --admin: #00ff87; }
+        body { background: var(--bg); color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
+        .box { max-width: 500px; margin: auto; background: #1f2833; padding: 20px; border-radius: 10px; }
+        input { padding: 10px; margin: 5px; border-radius: 5px; border: none; }
+        button { background: var(--primary); padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .admin-panel { border: 2px solid var(--admin); padding: 10px; margin-top: 20px; text-align: left; }
     </style>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -18,28 +17,24 @@
 <body>
 
 <div class="box">
-    <h1>Werwolf System 🐺</h1>
+    <h1>Werwolf Game 🐺</h1>
     
-    <!-- Вход -->
-    <div id="setup-screen">
-        <input type="text" id="gameCode" placeholder="Code eingeben...">
-        <input type="text" id="nick" placeholder="Dein Nickname...">
-        <button onclick="joinGame()">Lobby beitreten</button>
+    <div id="setup">
+        <input type="text" id="gameCode" placeholder="Code">
+        <input type="text" id="nick" placeholder="Nickname">
+        <button onclick="join()">Lobby beitreten</button>
         <br><br>
         <button onclick="adminLogin()" style="background:var(--admin)">Admin-Login</button>
     </div>
 
-    <!-- Админка -->
-    <div id="admin-screen" class="hidden">
-        <div id="loader" class="hidden">Generiere Spiel-Code... ⏳</div>
-        <button id="genBtn" onclick="generateCode()">Neuen Spiel-Code erstellen</button>
-        <h2 id="generatedCode" style="color:var(--admin)"></h2>
+    <div id="lobby" style="display:none;">
+        <h2 id="roomTitle"></h2>
+        <div id="playersList"></div>
     </div>
 
-    <!-- Лобби -->
-    <div id="lobby-screen" class="hidden">
-        <h2 id="roomDisplay"></h2>
-        <div class="player-list" id="playersList"></div>
+    <div id="adminPanel" class="admin-panel" style="display:none;">
+        <h3>Admin-Kontrolle 🛡️</h3>
+        <div id="adminStatus"></div>
     </div>
 </div>
 
@@ -49,36 +44,33 @@
     const db = firebase.database();
 
     function adminLogin() {
-        if(prompt("Admin-Passwort:") === "2026") {
-            document.getElementById('setup-screen').classList.add('hidden');
-            document.getElementById('admin-screen').classList.remove('hidden');
+        if(prompt("Passwort:") === "2026") {
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'block';
+            let code = prompt("Welcher Raum?");
+            monitorRoom(code);
         }
     }
 
-    async function generateCode() {
-        document.getElementById('genBtn').classList.add('hidden');
-        document.getElementById('loader').classList.remove('hidden');
-        await new Promise(r => setTimeout(r, 5000)); // 5 сек загрузка
-        const code = Math.floor(1000 + Math.random() * 9000);
-        document.getElementById('loader').classList.add('hidden');
-        document.getElementById('generatedCode').innerText = "Code: " + code;
+    function join() {
+        let code = document.getElementById('gameCode').value;
+        let nick = document.getElementById('nick').value;
+        db.ref("rooms/" + code + "/players").push(nick);
+        document.getElementById('setup').style.display = 'none';
+        document.getElementById('lobby').style.display = 'block';
+        document.getElementById('roomTitle').innerText = "Raum: " + code;
+        
+        db.ref("rooms/" + code + "/players").on('value', snap => {
+            document.getElementById('playersList').innerHTML = Object.values(snap.val() || {}).map(n => `<div>👤 ${n}</div>`).join('');
+        });
     }
 
-    function joinGame() {
-        const code = document.getElementById('gameCode').value;
-        const name = document.getElementById('nick').value;
-        if(!code || !name) return alert("Code und Name!");
-
-        db.ref("rooms/" + code + "/players").push(name);
-        
-        document.getElementById('setup-screen').classList.add('hidden');
-        document.getElementById('lobby-screen').classList.remove('hidden');
-        document.getElementById('roomDisplay').innerText = "Raum: " + code;
-
-        db.ref("rooms/" + code + "/players").on('value', snap => {
-            const p = snap.val();
-            document.getElementById('playersList').innerHTML = "<h3>Spieler im Raum:</h3>" + 
-                Object.values(p || {}).map(n => `<div>👤 ${n}</div>`).join('');
+    function monitorRoom(code) {
+        db.ref("rooms/" + code).on('value', snap => {
+            const data = snap.val();
+            let html = "<h4>Spieler:</h4>";
+            for(let key in data.players) html += `<div>${data.players[key]}</div>`;
+            document.getElementById('adminStatus').innerHTML = html;
         });
     }
 </script>
