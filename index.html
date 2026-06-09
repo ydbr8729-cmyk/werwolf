@@ -1,49 +1,89 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
+    <meta charset="UTF-8">
+    <title>Werwolf Online 🐺</title>
+    <style>
+        :root { --bg: #0b0c10; --panel: #1f2833; --primary: #45f3ff; --accent: #ff0055; --admin: #00ff87; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #c5c6c7; text-align: center; padding: 20px; }
+        .box { max-width: 500px; margin: 30px auto; background: var(--panel); padding: 30px; border-radius: 16px; border: 1px solid var(--primary); }
+        input { padding: 12px; width: 80%; margin: 10px 0; border-radius: 8px; border: 2px solid var(--primary); background: #0f1115; color: white; text-align: center; }
+        button { background: var(--primary); color: #000; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .admin-sidebar { position: fixed; top: 10px; right: 10px; background: var(--admin); color: #000; padding: 10px; border-radius: 8px; font-size: 12px; }
+        .hidden { display: none; }
+        .card { width: 150px; height: 200px; background: #2c161f; margin: 20px auto; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 2px solid var(--accent); cursor: pointer; }
+    </style>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-    <div id="login">
-        <input type="text" id="gameCode" placeholder="Код игры (напр. 4829)">
-        <input type="text" id="nick" placeholder="Твой ник">
-        <button onclick="joinGame()">Войти в игру</button>
+
+<div id="admin-sidebar" class="admin-sidebar" onclick="openAdmin()">Admin-Code 🔐</div>
+
+<div class="box">
+    <h1>Werwolf Online 🐺</h1>
+    <div id="setup-screen">
+        <input type="text" id="gameCode" placeholder="Spiel-Code eingeben...">
+        <input type="text" id="nick" placeholder="Dein Nickname...">
+        <button onclick="joinGame()">Lobby beitreten</button>
     </div>
-    <div id="lobby" style="display:none;">
-        <h2 id="roomTitle">Комната: </h2>
+
+    <div id="lobby-screen" class="hidden">
+        <h2 id="roomDisplay"></h2>
         <div id="playersList"></div>
+        <button id="startBtn" class="hidden" onclick="startGame()">Spiel starten 🚀</button>
     </div>
 
-    <script>
-        const firebaseConfig = { databaseURL: "https://werwolf-test-default-rtdb.europe-west1.firebasedatabase.app/" };
-        firebase.initializeApp(firebaseConfig);
+    <div id="game-screen" class="hidden">
+        <div class="card" onclick="revealCard()">Karte anzeigen</div>
+        <div id="roleDisplay" style="font-size: 24px; font-weight: bold; margin-top: 20px;"></div>
+    </div>
+</div>
 
-        function joinGame() {
-            const code = document.getElementById('gameCode').value;
-            const name = document.getElementById('nick').value;
-            if(!code || !name) return alert("Введите код и ник!");
+<script>
+    const firebaseConfig = { databaseURL: "https://werwolf-test-default-rtdb.europe-west1.firebasedatabase.app/" };
+    firebase.initializeApp(firebaseConfig);
+    
+    let dbRef, myName, myCode;
 
-            const db = firebase.database().ref("rooms/" + code);
-            
-            db.once('value', (snap) => {
-                const room = snap.val();
-                const players = room ? Object.values(room.players || {}) : [];
+    function openAdmin() {
+        let code = prompt("Admin-Code:");
+        if(code === "2026") document.body.style.border = "5px solid var(--admin)";
+    }
 
-                if(players.length >= 19) return alert("Лобби забито (лимит 19)!");
-                
-                db.child('players').push(name);
-                document.getElementById('login').style.display = 'none';
-                document.getElementById('lobby').style.display = 'block';
-                document.getElementById('roomTitle').innerText = "Комната: " + code;
-                
-                // Слушаем только ЭТУ комнату
-                db.child('players').on('value', s => {
-                    const p = s.val();
-                    document.getElementById('playersList').innerHTML = Object.values(p || {}).map(n => `<div>👤 ${n}</div>`).join('');
-                });
-            });
-        }
-    </script>
+    function joinGame() {
+        myCode = document.getElementById('gameCode').value;
+        myName = document.getElementById('nick').value;
+        if(!myCode || !myName) return alert("Code und Name eingeben!");
+
+        dbRef = firebase.database().ref("rooms/" + myCode);
+        dbRef.child('players').push(myName);
+        
+        document.getElementById('setup-screen').classList.add('hidden');
+        document.getElementById('lobby-screen').classList.remove('hidden');
+        document.getElementById('roomDisplay').innerText = "Raum: " + myCode;
+
+        dbRef.child('players').on('value', snap => {
+            const p = snap.val();
+            document.getElementById('playersList').innerHTML = Object.values(p || {}).map(n => `<div>👤 ${n}</div>`).join('');
+            if(Object.values(p || {}).length >= 2) document.getElementById('startBtn').classList.remove('hidden');
+        });
+
+        dbRef.child('state').on('value', snap => {
+            if(snap.val() === 'started') {
+                document.getElementById('lobby-screen').classList.add('hidden');
+                document.getElementById('game-screen').classList.remove('hidden');
+            }
+        });
+    }
+
+    function startGame() { dbRef.child('state').set('started'); }
+
+    function revealCard() {
+        dbRef.child('roles/' + myName).once('value', s => {
+            document.getElementById('roleDisplay').innerText = s.val() || "Dorfbewohner";
+        });
+    }
+</script>
 </body>
 </html>
