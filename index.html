@@ -2,228 +2,87 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Werwolf Game :: Das Dorf</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <title>Werwolf Nexus 🐺</title>
     <style>
-        :root {
-            --bg-dark: #050505;
-            --neon-blue: #00ffff;
-            --text-main: #ffffff;
+        :root { --neon-green: #00ff87; --bg: #050805; }
+        body { margin: 0; background: var(--bg); color: var(--neon-green); font-family: 'Courier New', monospace; overflow: hidden; }
+        canvas { position: fixed; top: 0; left: 0; z-index: 0; }
+        
+        #app { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .card { 
+            background: rgba(5, 15, 5, 0.8); border: 2px solid var(--neon-green);
+            padding: 40px; border-radius: 20px; text-align: center;
+            box-shadow: 0 0 30px rgba(0, 255, 135, 0.2);
+            animation: rotateEntry 2s cubic-bezier(0.17, 0.67, 0.83, 0.67);
         }
-
-        body {
-            margin: 0;
-            padding: 0;
-            background: var(--bg-dark);
-            color: var(--text-main);
-            font-family: 'Roboto Mono', monospace;
-            overflow: hidden;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        /* --- ЗВЕЗДЫ И СНЕГ --- */
-        canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-        }
-
-        /* --- ОСНОВНОЙ КОНТЕЙНЕР --- */
-        #app {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            perspective: 1000px; /* Для 3D эффекта */
-        }
-
-        .card {
-            background: rgba(10, 10, 15, 0.6);
-            backdrop-filter: blur(15px) saturate(180%);
-            -webkit-backdrop-filter: blur(15px) saturate(180%);
-            border: 2px solid var(--neon-blue);
-            border-radius: 25px;
-            width: 450px;
-            padding: 50px;
-            text-align: center;
-            box-shadow: 0 0 40px rgba(0, 255, 255, 0.4), inset 0 0 20px rgba(0, 255, 255, 0.2);
-            
-            /* Анимация входа (вращение 720deg) */
-            animation: entrance 2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
-        }
-
-        @keyframes entrance {
-            0% { transform: scale(0.3) rotateY(0deg); opacity: 0; }
-            100% { transform: scale(1) rotateY(720deg); opacity: 1; }
-        }
-
-        h1 {
-            margin: 0 0 30px 0;
-            font-size: 3em;
-            text-transform: uppercase;
-            letter-spacing: 5px;
-            color: var(--neon-blue);
-            text-shadow: 0 0 15px var(--neon-blue);
-        }
-
-        /* --- ИНПУТ И КНОПКА --- */
-        input {
-            width: 80%;
-            padding: 15px;
-            margin-bottom: 25px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--neon-blue);
-            border-radius: 10px;
-            color: var(--text-main);
-            font-family: 'Roboto Mono', monospace;
-            font-size: 1.2em;
-            text-align: center;
-            transition: 0.3s;
-        }
-
-        input:focus { outline: none; box-shadow: 0 0 15px var(--neon-blue); }
-
-        button {
-            width: 88%;
-            padding: 18px;
-            background: linear-gradient(45deg, #00bfff, var(--neon-blue));
-            border: none;
-            border-radius: 10px;
-            color: var(--bg-dark);
-            font-size: 1.4em;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: 0.3s;
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
-        }
-
-        button:hover {
-            transform: translateY(-3px) scale(1.02);
-            box-shadow: 0 0 25px rgba(0, 255, 255, 0.9);
-        }
-
-        /* --- ЛОББИ И СПИСОК ИГРОКОВ --- */
-        #lobby h3 {
-            margin-top: 0;
-            font-size: 1.5em;
-            color: var(--neon-blue);
-            text-shadow: 0 0 5px var(--neon-blue);
-        }
-
-        .player-item {
-            padding: 12px;
-            margin: 10px 0;
-            background: rgba(0, 255, 255, 0.1);
-            border: 1px solid rgba(0, 255, 255, 0.3);
-            border-radius: 8px;
-            font-size: 1.3em;
-            letter-spacing: 2px;
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; } }
+        @keyframes rotateEntry { from { transform: rotate(0deg) scale(0); } to { transform: rotate(720deg) scale(1); } }
+        
+        input { background: transparent; border: 1px solid var(--neon-green); color: white; padding: 10px; width: 200px; display: block; margin: 10px auto; }
+        button { background: var(--neon-green); border: none; padding: 10px 30px; cursor: pointer; font-weight: bold; }
+        
+        #spider { position: absolute; top: -50px; font-size: 30px; transition: 2s; }
+        .player-item { display: inline-block; margin: 10px; padding: 10px; border: 1px solid var(--neon-green); border-radius: 10px; }
     </style>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-
-<canvas id="starfield"></canvas>
+<canvas id="netCanvas"></canvas>
+<div id="spider">🕷️</div>
 
 <div id="app">
-    <div class="card">
-        <h1>Werwolf</h1>
-        
+    <div class="card" id="card">
+        <h1>WERWOLF</h1>
         <div id="login">
-            <input type="text" id="nick" placeholder="SPIELERNAME" maxlength="15">
-            <button onclick="join()">BETRETEN</button>
-        </div>
-
-        <div id="lobby" style="display:none;">
-            <h3>IM DORF:</h3>
-            <div id="playersList"></div>
+            <input type="text" id="nick" placeholder="Nickname">
+            <button onclick="join()">SPIELEN</button>
         </div>
     </div>
 </div>
 
+<div id="playersContainer" style="position:fixed; bottom:20px; width:100%; text-align:center;"></div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script>
-    // 1. АНИМАЦИЯ ЧАСТИЦ (СНЕГ/ЗВЕЗДЫ)
-    const canvas = document.getElementById('starfield');
+    // Паучок-анимация
+    setTimeout(() => document.getElementById('spider').style.top = '20px', 500);
+
+    // Паутинка (Network)
+    const canvas = document.getElementById('netCanvas');
     const ctx = canvas.getContext('2d');
-    let width, height;
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    let dots = Array.from({length: 40}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: Math.random()-0.5, vy: Math.random()-0.5}));
 
-    function resize() {
-        width = canvas.width = window.innerWidth;
-        height = canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    let stars = [];
-    // Создаем 150 звезд разного размера и скорости
-    for(let i = 0; i < 150; i++) {
-        stars.push({
-            x: Math.random() * width,
-            y: Math.random() * height,
-            z: Math.random() * width, // для эффекта глубины
-            o: Math.random() // opacity
+    function draw() {
+        ctx.fillStyle = "#050805"; ctx.fillRect(0,0, canvas.width, canvas.height);
+        ctx.strokeStyle = "rgba(0, 255, 135, 0.2)";
+        dots.forEach((d, i) => {
+            d.x += d.vx; d.y += d.vy;
+            if(d.x < 0 || d.x > canvas.width) d.vx *= -1;
+            if(d.y < 0 || d.y > canvas.height) d.vy *= -1;
+            dots.forEach((d2, j) => {
+                if(Math.hypot(d.x-d2.x, d.y-d2.y) < 150) {
+                    ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d2.x, d2.y); ctx.stroke();
+                }
+            });
         });
+        requestAnimationFrame(draw);
     }
+    draw();
 
-    function animateParticles() {
-        ctx.fillStyle = "#050505";
-        ctx.fillRect(0, 0, width, height);
-        
-        stars.forEach(star => {
-            star.z -= 1; // Звезды летят на нас
-            if(star.z <= 0) star.z = width;
-
-            // Проекция 3D в 2D
-            const sx = (star.x - width / 2) * (width / star.z) + width / 2;
-            const sy = (star.y - height / 2) * (width / star.z) + height / 2;
-            const s = (1 - star.z / width) * 2; // Размер звезды
-            
-            ctx.beginPath();
-            ctx.fillStyle = `rgba(255, 255, 255, ${1 - star.z / width})`; // Яркость от глубины
-            ctx.arc(sx, sy, s, 0, Math.PI * 2);
-            ctx.fill();
-        });
-        requestAnimationFrame(animateParticles);
-    }
-    animateParticles();
-
-
-    // 2. ЛОГИКА FIREBASE (Подключи свою базу)
-    const firebaseConfig = { databaseURL: "https://werwolf-test-default-rtdb.europe-west1.firebasedatabase.app/" };
-    firebase.initializeApp(firebaseConfig);
+    // Firebase (код лобби)
     const db = firebase.database().ref("global_lobby");
-
     function join() {
         const nick = document.getElementById('nick').value;
-        if(!nick) return; // Ник обязателен
-
-        // Сохраняем игрока и ставим флаг удаления при отключении
-        const playerRef = db.child(nick);
-        playerRef.set({ online: true });
-        playerRef.onDisconnect().remove();
-
-        // Переключаем вид
-        document.getElementById('login').style.display = 'none';
-        document.getElementById('lobby').style.display = 'block';
+        if(!nick) return;
+        db.child(nick).set({ online: true });
+        db.child(nick).onDisconnect().remove();
+        document.getElementById('card').style.display = 'none';
     }
 
-    // Слушаем изменения списка игроков
     db.on('value', snap => {
-        const players = snap.val() || {};
-        document.getElementById('playersList').innerHTML = Object.keys(players)
-            .map(n => `<div class="player-item">👤 ${n}</div>`)
-            .join('');
+        const p = snap.val() || {};
+        document.getElementById('playersContainer').innerHTML = Object.keys(p)
+            .map(n => `<div class="player-item">👤 ${n}</div>`).join('');
     });
 </script>
 </body>
