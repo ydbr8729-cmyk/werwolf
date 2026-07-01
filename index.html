@@ -4,64 +4,56 @@
     <meta charset="UTF-8">
     <title>Werwolf Nexus 🐺</title>
     <style>
-        :root { --neon-green: #00ff87; --bg: #050805; }
-        body { margin: 0; background: var(--bg); color: var(--neon-green); font-family: 'Courier New', monospace; overflow: hidden; }
+        :root { --green: #00ff87; --bg: #050805; }
+        body { margin: 0; background: var(--bg); color: var(--green); font-family: 'Courier New', monospace; overflow: hidden; }
         canvas { position: fixed; top: 0; left: 0; z-index: 0; }
-        
-        #app { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .card { 
-            background: rgba(5, 15, 5, 0.8); border: 2px solid var(--neon-green);
-            padding: 40px; border-radius: 20px; text-align: center;
-            box-shadow: 0 0 30px rgba(0, 255, 135, 0.2);
-            animation: rotateEntry 2s cubic-bezier(0.17, 0.67, 0.83, 0.67);
-        }
-        @keyframes rotateEntry { from { transform: rotate(0deg) scale(0); } to { transform: rotate(720deg) scale(1); } }
-        
-        input { background: transparent; border: 1px solid var(--neon-green); color: white; padding: 10px; width: 200px; display: block; margin: 10px auto; }
-        button { background: var(--neon-green); border: none; padding: 10px 30px; cursor: pointer; font-weight: bold; }
-        
-        #spider { position: absolute; top: -50px; font-size: 30px; transition: 2s; }
-        .player-item { display: inline-block; margin: 10px; padding: 10px; border: 1px solid var(--neon-green); border-radius: 10px; }
+        #app { position: relative; z-index: 2; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .card { background: rgba(5, 15, 5, 0.7); border: 1px solid var(--green); padding: 40px; border-radius: 20px; text-align: center; box-shadow: 0 0 50px rgba(0, 255, 135, 0.3); }
+        input { background: transparent; border: 1px solid var(--green); color: white; padding: 10px; width: 220px; margin: 10px 0; outline: none; text-align: center; }
+        button { background: var(--green); color: black; border: none; padding: 12px 30px; cursor: pointer; font-weight: bold; text-transform: uppercase; }
+        #spider-container { position: absolute; top: 20px; left: 50%; z-index: 3; transition: 2s; }
+        .flag { background: var(--green); color: black; padding: 5px; font-size: 12px; border-radius: 5px; }
+        #playersContainer { position: fixed; bottom: 50px; width: 100%; text-align: center; z-index: 5; }
+        .player-item { display: inline-block; margin: 10px; padding: 10px 20px; border: 1px solid var(--green); border-radius: 20px; background: rgba(0, 255, 135, 0.1); }
     </style>
 </head>
 <body>
 <canvas id="netCanvas"></canvas>
-<div id="spider">🕷️</div>
+
+<div id="spider-container">
+    🕷️<div class="flag">Hallo!</div>
+</div>
 
 <div id="app">
-    <div class="card" id="card">
-        <h1>WERWOLF</h1>
-        <div id="login">
-            <input type="text" id="nick" placeholder="Nickname">
-            <button onclick="join()">SPIELEN</button>
-        </div>
+    <div class="card" id="loginCard">
+        <h1>WERWOLF 🐺</h1>
+        <input type="text" id="nick" placeholder="NICKNAME">
+        <button onclick="join()">SPIELEN</button>
     </div>
 </div>
 
-<div id="playersContainer" style="position:fixed; bottom:20px; width:100%; text-align:center;"></div>
+<div id="playersContainer"></div>
 
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script>
-    // Паучок-анимация
-    setTimeout(() => document.getElementById('spider').style.top = '20px', 500);
-
-    // Паутинка (Network)
+    // Паутинка
     const canvas = document.getElementById('netCanvas');
     const ctx = canvas.getContext('2d');
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    let dots = Array.from({length: 40}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: Math.random()-0.5, vy: Math.random()-0.5}));
+    let dots = Array.from({length: 50}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: Math.random()-0.5, vy: Math.random()-0.5}));
 
     function draw() {
         ctx.fillStyle = "#050805"; ctx.fillRect(0,0, canvas.width, canvas.height);
-        ctx.strokeStyle = "rgba(0, 255, 135, 0.2)";
-        dots.forEach((d, i) => {
+        dots.forEach(d => {
             d.x += d.vx; d.y += d.vy;
             if(d.x < 0 || d.x > canvas.width) d.vx *= -1;
             if(d.y < 0 || d.y > canvas.height) d.vy *= -1;
-            dots.forEach((d2, j) => {
-                if(Math.hypot(d.x-d2.x, d.y-d2.y) < 150) {
-                    ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d2.x, d2.y); ctx.stroke();
+        });
+        dots.forEach((d, i) => {
+            dots.slice(i+1).forEach(d2 => {
+                let dist = Math.hypot(d.x-d2.x, d.y-d2.y);
+                if(dist < 150) {
+                    ctx.beginPath(); ctx.strokeStyle = `rgba(0, 255, 135, ${1 - dist/150})`;
+                    ctx.moveTo(d.x, d.y); ctx.lineTo(d2.x, d2.y); ctx.stroke();
                 }
             });
         });
@@ -69,21 +61,25 @@
     }
     draw();
 
-    // Firebase (код лобби)
-    const db = firebase.database().ref("global_lobby");
+    // Локальная логика без Firebase
+    let players = JSON.parse(localStorage.getItem('werwolf_players')) || [];
+
     function join() {
-        const nick = document.getElementById('nick').value;
+        const nick = document.getElementById('nick').value.trim();
         if(!nick) return;
-        db.child(nick).set({ online: true });
-        db.child(nick).onDisconnect().remove();
-        document.getElementById('card').style.display = 'none';
+        if(!players.includes(nick)) {
+            players.push(nick);
+            localStorage.setItem('werwolf_players', JSON.stringify(players));
+            render();
+            document.getElementById('loginCard').style.display = 'none';
+        }
     }
 
-    db.on('value', snap => {
-        const p = snap.val() || {};
-        document.getElementById('playersContainer').innerHTML = Object.keys(p)
+    function render() {
+        document.getElementById('playersContainer').innerHTML = players
             .map(n => `<div class="player-item">👤 ${n}</div>`).join('');
-    });
+    }
+    render();
 </script>
 </body>
 </html>
