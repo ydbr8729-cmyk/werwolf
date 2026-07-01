@@ -1,78 +1,57 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Werwolf Game 🐺</title>
+    <title>Werwolf Live 🐺</title>
     <style>
-        :root { --bg: #0b0c10; --primary: #45f3ff; --admin: #00ff87; }
-        body { background: var(--bg); color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
-        .box { max-width: 500px; margin: auto; background: #1f2833; padding: 20px; border-radius: 10px; }
-        input { padding: 10px; margin: 5px; border-radius: 5px; border: none; }
-        button { background: var(--primary); padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        .admin-panel { border: 2px solid var(--admin); padding: 10px; margin-top: 20px; text-align: left; }
+        :root { --neon: #45f3ff; --bg: #0b0c10; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; padding-top: 50px; }
+        .card { width: 100%; max-width: 400px; background: #1f2833; padding: 25px; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        input { width: 80%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; outline: none; }
+        button { width: 88%; padding: 12px; background: var(--neon); border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button:hover { transform: scale(1.05); filter: brightness(1.2); }
+        .player-item { padding: 10px; border-bottom: 1px solid #454545; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
     </style>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 
-<div class="box">
-    <h1>Werwolf Game 🐺</h1>
-    
-    <div id="setup">
-        <input type="text" id="gameCode" placeholder="Code">
-        <input type="text" id="nick" placeholder="Nickname">
-        <button onclick="join()">Lobby beitreten</button>
-        <br><br>
-        <button onclick="adminLogin()" style="background:var(--admin)">Admin-Login</button>
+<div class="card" id="app">
+    <h1>Werwolf 🐺</h1>
+    <div id="login">
+        <input type="text" id="nick" placeholder="Твой никнейм...">
+        <button onclick="join()">Войти в лобби</button>
     </div>
-
     <div id="lobby" style="display:none;">
-        <h2 id="roomTitle"></h2>
+        <h3>Игроки в комнате:</h3>
         <div id="playersList"></div>
-    </div>
-
-    <div id="adminPanel" class="admin-panel" style="display:none;">
-        <h3>Admin-Kontrolle 🛡️</h3>
-        <div id="adminStatus"></div>
     </div>
 </div>
 
 <script>
     const firebaseConfig = { databaseURL: "https://werwolf-test-default-rtdb.europe-west1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    function adminLogin() {
-        if(prompt("Passwort:") === "2026") {
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('adminPanel').style.display = 'block';
-            let code = prompt("Welcher Raum?");
-            monitorRoom(code);
-        }
-    }
+    const db = firebase.database().ref("global_lobby");
 
     function join() {
-        let code = document.getElementById('gameCode').value;
-        let nick = document.getElementById('nick').value;
-        db.ref("rooms/" + code + "/players").push(nick);
-        document.getElementById('setup').style.display = 'none';
-        document.getElementById('lobby').style.display = 'block';
-        document.getElementById('roomTitle').innerText = "Raum: " + code;
+        const nick = document.getElementById('nick').value;
+        if(!nick) return alert("Ник давай!");
         
-        db.ref("rooms/" + code + "/players").on('value', snap => {
-            document.getElementById('playersList').innerHTML = Object.values(snap.val() || {}).map(n => `<div>👤 ${n}</div>`).join('');
-        });
+        const playerRef = db.child(nick);
+        playerRef.set({ online: true });
+        playerRef.onDisconnect().remove(); // Уходит, если закрыл вкладку
+
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('lobby').style.display = 'block';
     }
 
-    function monitorRoom(code) {
-        db.ref("rooms/" + code).on('value', snap => {
-            const data = snap.val();
-            let html = "<h4>Spieler:</h4>";
-            for(let key in data.players) html += `<div>${data.players[key]}</div>`;
-            document.getElementById('adminStatus').innerHTML = html;
-        });
-    }
+    db.on('value', snap => {
+        const players = snap.val() || {};
+        document.getElementById('playersList').innerHTML = Object.keys(players)
+            .map(n => `<div class="player-item">👤 ${n}</div>`).join('');
+    });
 </script>
 </body>
 </html>
