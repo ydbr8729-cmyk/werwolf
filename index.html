@@ -11,8 +11,6 @@
         .card { background: rgba(5, 15, 5, 0.7); border: 1px solid var(--green); padding: 40px; border-radius: 20px; text-align: center; box-shadow: 0 0 50px rgba(0, 255, 135, 0.3); }
         input { background: transparent; border: 1px solid var(--green); color: white; padding: 10px; width: 220px; margin: 10px 0; outline: none; text-align: center; }
         button { background: var(--green); color: black; border: none; padding: 12px 30px; cursor: pointer; font-weight: bold; text-transform: uppercase; }
-        #spider-container { position: absolute; top: 20px; left: 50%; z-index: 3; transition: 2s; }
-        .flag { background: var(--green); color: black; padding: 5px; font-size: 12px; border-radius: 5px; }
         #playersContainer { position: fixed; bottom: 50px; width: 100%; text-align: center; z-index: 5; }
         .player-item { display: inline-block; margin: 10px; padding: 10px 20px; border: 1px solid var(--green); border-radius: 20px; background: rgba(0, 255, 135, 0.1); }
     </style>
@@ -20,22 +18,49 @@
 <body>
 <canvas id="netCanvas"></canvas>
 
-<div id="spider-container">
-    🕷️<div class="flag">Hallo!</div>
-</div>
-
 <div id="app">
     <div class="card" id="loginCard">
         <h1>WERWOLF 🐺</h1>
         <input type="text" id="nick" placeholder="NICKNAME">
-        <button onclick="join()">SPIELEN</button>
+        <button onclick="joinGame()">SPIELEN</button>
     </div>
 </div>
 
 <div id="playersContainer"></div>
 
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyC0ajDuGLKYTlzU63E2_x6QeZWPn_qj4Ds",
+        authDomain: "werwolfgame-d468d.firebaseapp.com",
+        projectId: "werwolfgame-d468d",
+        storageBucket: "werwolfgame-d468d.firebasestorage.app",
+        messagingSenderId: "27811976736",
+        appId: "1:27811976736:web:287482101022b5ca978e45"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    window.joinGame = () => {
+        const nick = document.getElementById('nick').value.trim();
+        if(!nick) return;
+        const playerRef = ref(db, 'lobby/' + nick);
+        set(playerRef, { status: "online" });
+        onDisconnect(playerRef).remove(); 
+        document.getElementById('loginCard').style.display = 'none';
+    };
+
+    onValue(ref(db, 'lobby'), (snapshot) => {
+        const players = snapshot.val() || {};
+        document.getElementById('playersContainer').innerHTML = Object.keys(players)
+            .map(n => `<div class="player-item">👤 ${n}</div>`).join('');
+    });
+</script>
+
 <script>
-    // Паутинка
     const canvas = document.getElementById('netCanvas');
     const ctx = canvas.getContext('2d');
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
@@ -60,26 +85,6 @@
         requestAnimationFrame(draw);
     }
     draw();
-
-    // Локальная логика без Firebase
-    let players = JSON.parse(localStorage.getItem('werwolf_players')) || [];
-
-    function join() {
-        const nick = document.getElementById('nick').value.trim();
-        if(!nick) return;
-        if(!players.includes(nick)) {
-            players.push(nick);
-            localStorage.setItem('werwolf_players', JSON.stringify(players));
-            render();
-            document.getElementById('loginCard').style.display = 'none';
-        }
-    }
-
-    function render() {
-        document.getElementById('playersContainer').innerHTML = players
-            .map(n => `<div class="player-item">👤 ${n}</div>`).join('');
-    }
-    render();
 </script>
 </body>
 </html>
