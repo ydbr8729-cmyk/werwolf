@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Werwolf Nexus 🐺</title>
+    <title>Werwolf  🐺</title>
     <style>
         :root { --green: #00ff87; --bg: #050805; }
         body { margin: 0; background: var(--bg); color: var(--green); font-family: 'Courier New', monospace; overflow: hidden; }
@@ -19,10 +19,17 @@
 <canvas id="netCanvas"></canvas>
 
 <div id="app">
+    <!-- Экран логина -->
     <div class="card" id="loginCard">
         <h1>WERWOLF 🐺</h1>
         <input type="text" id="nick" placeholder="NICKNAME">
         <button onclick="joinGame()">SPIELEN</button>
+    </div>
+
+    <!-- ЭКРАН ИГРЫ (скрыт до входа) -->
+    <div class="card" id="gameBoard" style="display: none;">
+        <h1>SPIEL LÄUFT 🐺</h1>
+        <p>Warte auf andere Spieler...</p>
     </div>
 </div>
 
@@ -47,10 +54,12 @@
     window.joinGame = () => {
         const nick = document.getElementById('nick').value.trim();
         if(!nick) return;
+        document.getElementById('loginCard').style.display = 'none';
+        document.getElementById('gameBoard').style.display = 'block';
+
         const playerRef = ref(db, 'lobby/' + nick);
         set(playerRef, { status: "online" });
         onDisconnect(playerRef).remove(); 
-        document.getElementById('loginCard').style.display = 'none';
     };
 
     onValue(ref(db, 'lobby'), (snapshot) => {
@@ -65,7 +74,6 @@
     const ctx = canvas.getContext('2d');
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     
-    // Снег (вместо паутины)
     let flakes = Array.from({length: 100}, () => ({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
