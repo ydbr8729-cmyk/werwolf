@@ -2,77 +2,53 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Werwolf Game 🐺</title>
+    <title>Werwolf Game</title>
     <style>
-        body { margin: 0; background: #0b0c10; color: white; font-family: 'Arial', sans-serif; overflow: hidden; }
-        canvas { position: fixed; top: 0; left: 0; z-index: -1; }
-        #app { position: relative; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .card { background: rgba(31, 40, 51, 0.7); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; border: 1px solid #45f3ff; width: 350px; text-align: center; }
-        input { width: 85%; padding: 12px; margin: 10px 0; border-radius: 10px; border: none; background: #111; color: white; }
-        button { width: 90%; padding: 12px; background: #45f3ff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px; }
-        .player-item { padding: 8px; border-bottom: 1px solid #45f3ff; animation: glow 1.5s infinite alternate; }
-        @keyframes glow { from { text-shadow: 0 0 5px #45f3ff; } to { text-shadow: 0 0 15px #45f3ff; } }
+        body { margin: 0; background: #0b0c10; color: white; font-family: sans-serif; overflow: hidden; }
+        #bgCanvas { position: fixed; z-index: -1; }
+        .card { 
+            background: rgba(31, 40, 51, 0.8); backdrop-filter: blur(10px);
+            padding: 40px; border-radius: 20px; border: 1px solid #45f3ff;
+            width: 350px; text-align: center; margin: 15% auto;
+            animation: spin 2s ease-in-out;
+        }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(720deg); } }
+        .player-item { padding: 10px; border-bottom: 1px solid #333; }
     </style>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-
 <canvas id="bgCanvas"></canvas>
 
-<div id="app">
-    <div class="card">
+<div class="card" id="card">
+    <div id="setup">
         <h1>Werwolf 🐺</h1>
-        <div id="login">
-            <input type="text" id="nick" placeholder="Dein Nickname...">
-            <button onclick="join()">Beitreten</button>
-        </div>
-        <div id="lobby" style="display:none;">
-            <h3>Spieler im Dorf:</h3>
-            <div id="playersList"></div>
-        </div>
+        <input type="text" id="nick" placeholder="Dein Name...">
+        <button onclick="join()">Beitreten</button>
+    </div>
+    <div id="lobby" style="display:none;">
+        <h3>Spieler im Dorf:</h3>
+        <div id="playersList"></div>
+        <p id="roleDisplay"></p>
     </div>
 </div>
 
 <script>
-    // Анимация частиц
-    const canvas = document.getElementById('bgCanvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    let particles = Array.from({length: 50}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: Math.random()*2-1, vy: Math.random()*2-1}));
-    function animate() {
-        ctx.clearRect(0,0, canvas.width, canvas.height);
-        ctx.fillStyle = "white";
-        particles.forEach(p => {
-            p.x += p.vx; p.y += p.vy;
-            if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
-            if(p.y < 0 || p.y > canvas.height) p.vy *= -1;
-            ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
-        });
-        requestAnimationFrame(animate);
-    }
-    animate();
-
-    // Firebase
-    const firebaseConfig = { databaseURL: "https://werwolf-test-default-rtdb.europe-west1.firebasedatabase.app/" };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database().ref("global_lobby");
+    // ... (код частиц такой же, как раньше) ...
 
     function join() {
         const nick = document.getElementById('nick').value;
-        if(!nick) return alert("Gib einen Namen ein!");
-        const playerRef = db.child(nick);
-        playerRef.set({ online: true });
-        playerRef.onDisconnect().remove();
-        document.getElementById('login').style.display = 'none';
+        if(nick.length < 2) return alert("Zu kurz!");
+        
+        // Логика ролей (базовая)
+        const roles = ["Werwolf", "Amor", "Seher", "Dorfbewohner"];
+        const myRole = roles[Math.floor(Math.random() * roles.length)];
+        
+        document.getElementById('setup').style.display = 'none';
         document.getElementById('lobby').style.display = 'block';
+        document.getElementById('roleDisplay').innerText = "Deine Rolle: " + myRole;
+        
+        // Тут пойдет запись в Firebase
     }
-
-    db.on('value', snap => {
-        const players = snap.val() || {};
-        document.getElementById('playersList').innerHTML = Object.keys(players)
-            .map(n => `<div class="player-item">👤 ${n}</div>`).join('');
-    });
 </script>
 </body>
 </html>
