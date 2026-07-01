@@ -64,23 +64,22 @@
     const canvas = document.getElementById('netCanvas');
     const ctx = canvas.getContext('2d');
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    let dots = Array.from({length: 50}, () => ({x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: Math.random()-0.5, vy: Math.random()-0.5}));
+    
+    // Снег (вместо паутины)
+    let flakes = Array.from({length: 100}, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 3 + 1,
+        v: Math.random() * 1 + 0.5
+    }));
 
     function draw() {
         ctx.fillStyle = "#050805"; ctx.fillRect(0,0, canvas.width, canvas.height);
-        dots.forEach(d => {
-            d.x += d.vx; d.y += d.vy;
-            if(d.x < 0 || d.x > canvas.width) d.vx *= -1;
-            if(d.y < 0 || d.y > canvas.height) d.vy *= -1;
-        });
-        dots.forEach((d, i) => {
-            dots.slice(i+1).forEach(d2 => {
-                let dist = Math.hypot(d.x-d2.x, d.y-d2.y);
-                if(dist < 150) {
-                    ctx.beginPath(); ctx.strokeStyle = `rgba(0, 255, 135, ${1 - dist/150})`;
-                    ctx.moveTo(d.x, d.y); ctx.lineTo(d2.x, d2.y); ctx.stroke();
-                }
-            });
+        ctx.fillStyle = "white";
+        flakes.forEach(f => {
+            ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI*2); ctx.fill();
+            f.y += f.v;
+            if(f.y > canvas.height) f.y = 0;
         });
         requestAnimationFrame(draw);
     }
